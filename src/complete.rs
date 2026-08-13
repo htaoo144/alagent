@@ -5,7 +5,7 @@ use async_openai::types::chat::{
     ChatCompletionMessageToolCalls, ChatCompletionRequestAssistantMessageArgs,
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestToolMessageArgs,
     ChatCompletionRequestUserMessageArgs,
-    ChatCompletionTools, CreateChatCompletionRequestArgs, ResponseFormat};
+    ChatCompletionTools, CreateChatCompletionRequestArgs};
 use crate::agent::context::ExecutionContext;
 
 
@@ -14,6 +14,8 @@ pub async fn chat_complete(
     prompt:&str,
     tools:&ToolBox
 ) ->anyhow::Result<String>{
+    const MAX_ITERATIONS: u32 = 20;
+
     let client = async_openai::Client::new();
     let context = ExecutionContext::new();
     let mut messages = vec![
@@ -27,28 +29,31 @@ pub async fn chat_complete(
             .into()
     ];
 
-    let format_setting= ResponseFormat::JsonObject;
     let tool_definition:Vec<ChatCompletionTools> =tools.values()
         .filter_map(|tool| match tool.definition() {
             Ok(def)=>Some(def),
             Err(e)=>{
-                tracing::warn!("skip tool {},fffff{e}",tool.name());
+                tracing::warn!("skip tool {}: {e}",tool.name());
                 None
             }
         })
         .collect();
+    let mut iterations = 0;
     loop {
+        iterations += 1;
+        if iterations > MAX_ITERATIONS {
+            anyhow::bail!("Exceeded maximum tool-call iterations ({MAX_ITERATIONS})");
+        }
+
         let request = CreateChatCompletionRequestArgs::default()
             .model(model)
             .messages(messages.clone())
             .tools(tool_definition.clone())
-            .response_format(format_setting.clone())
-            // .max_tokens(2048u32)
             .build()?;
 
         let response = client.chat().create(request).await?;
 
-        tracing::info!("{:?}", response);
+        tracing::debug!("{:?}", response);
 
 
         let message = response.choices
@@ -74,7 +79,6 @@ pub async fn chat_complete(
                     let tool_result = match tools.get(function_name) {
                         Some(tool_result)=>match tool_result.execute(arguments,&context).await {
                             Ok(results)=>{
-                                // tracing::info!("{:?}", results); 打印出web——search的结果。
                                 results
                             }
                             Err(err)=>{
@@ -98,7 +102,7 @@ pub async fn chat_complete(
                 }
             }
         }else {
-            let content = message.content.ok_or_else(|| anyhow::anyhow!("No tool definition"))?;
+            let content = message.content.ok_or_else(|| anyhow::anyhow!("No message content"))?;
             return Ok(content)
         }
     }

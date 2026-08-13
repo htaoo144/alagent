@@ -25,9 +25,9 @@ impl BeforeToolCallBack for ApprovalCallback {
         if !self.dangerous_tool.contains(tool_call.name) {
             return None;
         }
-        println!("ApprovalCallback called");
-        println!("name: {}", tool_call.name);
-        println!("arguments: {}", tool_call.arguments);
+        tracing::info!("ApprovalCallback called");
+        tracing::info!("name: {}", tool_call.name);
+        tracing::info!("arguments: {}", tool_call.arguments);
 
         let approved = tokio::task::spawn_blocking(|| {
             println!("是否执行？（y/n）");
@@ -38,10 +38,10 @@ impl BeforeToolCallBack for ApprovalCallback {
         }) .await.unwrap_or(false);
 
         if approved {
-            print!("🐕，已批准，准备执行。。\n");
+            tracing::info!("已批准，准备执行");
             None
         }else {
-            println!("已拒绝 ，跳过这些。。\n");
+            tracing::info!("已拒绝，跳过该工具调用");
             Some(format!("User denied execution of {}", tool_call.name))
         }
     }

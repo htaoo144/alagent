@@ -27,6 +27,7 @@ const MAX_READ_IMAGE_BYTES: u64 = 5 * 1024 * 1024;
 const MAX_LIST_ENTRIES: usize = 200;
 const MAX_SEARCH_ENTRIES: usize = 100;
 const MAX_RECURSE_DEPTH: usize = 10;
+const MAX_EXTRACT_BYTES: u64 = 512 * 1024 * 1024;
 
 fn default_max_chars() -> usize {
     MAX_READ_CHARS
@@ -98,7 +99,7 @@ fn collect_entries(
             size_human: format_size(meta.len()),
             modified: format_time(meta.modified().unwrap_or(UNIX_EPOCH)),
         });
-        if is_dir && depth + 1 <= max_depth {
+        if is_dir && depth < max_depth {
             collect_entries(&path, depth + 1, max_depth, entries, max_entries)?;
         }
     }
@@ -120,10 +121,10 @@ fn list_dir(path: &Path, recursive: bool, max_entries: usize) -> Result<Vec<File
 }
 
 fn ensure_parent(path: &Path) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {e}"))?;
-        }
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {e}"))?;
     }
     Ok(())
 }
@@ -229,6 +230,12 @@ pub struct UnzipFileArgs {
 
 pub struct FileSystemServer;
 
+impl Default for FileSystemServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[tool_router]
 impl FileSystemServer {
     pub fn new() -> Self {
@@ -247,7 +254,13 @@ impl FileSystemServer {
         if path.is_dir() {
             return Err(format!("这是一个目录，请使用 list_files: {}", req.path));
         }
-        let bytes = fs::read(path).map_err(|e| format!("读取文件失败: {e}"))?;
+        let file = fs::File::open(path).map_err(|e| format!("打开文件失败: {e}"))?;
+        let read_limit = (req.max_chars as u64).saturating_mul(4).saturating_add(4);
+        let mut bytes = Vec::new();
+        use std::io::Read;
+        file.take(read_limit)
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("读取文件失败: {e}"))?;
         let mut text = match String::from_utf8(bytes) {
             Ok(text) => text,
             Err(err) => format!(
@@ -286,6 +299,9 @@ impl FileSystemServer {
         let path = Path::new(&req.path);
         if !path.exists() {
             return Err(format!("文件不存在: {}", req.path));
+        }
+        if path.is_dir() {
+            return Err(format!("这是一个目录，图片无法读取: {}", req.path));
         }
         let meta = fs::metadata(path).map_err(|e| format!("读取元数据失败: {e}"))?;
         if meta.len() > MAX_READ_IMAGE_BYTES {
@@ -394,7 +410,19 @@ impl FileSystemServer {
             }
         }
         ensure_parent(to)?;
-        fs::rename(from, to).map_err(|e| format!("移动失败: {e}"))?;
+        match fs::rename(from, to) {
+            Ok(()) => {}
+            Err(_) if from.is_file() => {
+                tracing::warn!(
+                    "rename 失败（可能跨卷），回退为复制+删除: {} -> {}",
+                    req.from,
+                    req.to
+                );
+                fs::copy(from, to).map_err(|e| format!("复制失败: {e}"))?;
+                fs::remove_file(from).map_err(|e| format!("删除源文件失败: {e}"))?;
+            }
+            Err(e) => return Err(format!("移动失败: {e}")),
+        }
         Ok(format!("已移动: {} -> {}", req.from, req.to))
     }
 
@@ -524,6 +552,12 @@ impl FileSystemServer {
                 let mut out_file = fs::File::create(&outpath).map_err(|e| e.to_string())?;
                 let written = io::copy(&mut entry, &mut out_file).map_err(|e| e.to_string())?;
                 total_size += written;
+                if total_size > MAX_EXTRACT_BYTES {
+                    return Err(format!(
+                        "解压内容超过大小上限 {}（疑似 zip 炸弹），已中止",
+                        format_size(MAX_EXTRACT_BYTES)
+                    ));
+                }
             }
         }
 
@@ -546,7 +580,7 @@ impl FileSystemServer {
 #[tool_handler]
 impl ServerHandler for FileSystemServer {
     fn get_info(&self) -> ServerInfo {
-        let server_info = ServerInfo::new(
+        ServerInfo::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .build(),
@@ -558,7 +592,6 @@ impl ServerHandler for FileSystemServer {
                         "文件系统操作工具集：读取/写入/删除/移动/复制文件、目录管理、图片读取、通配符搜索、zip 解压",
                     ),
             )
-            .with_instructions("请使用 tools 列表查看可用工具。");
-        server_info
+            .with_instructions("请使用 tools 列表查看可用工具。")
     }
 }

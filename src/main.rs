@@ -1,23 +1,12 @@
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
-use crate::complete::chat_complete;
-use crate::constant::AGENT_MODEL;
-use crate::tools::build_toolbox;
-
-pub mod action_plan;
-pub mod tools;
-pub mod agent;
-pub mod knowledge_base;
-pub mod complete;
-pub mod constant;
-pub mod callback;
-pub mod memory;
+use alagent::complete::chat_complete;
+use alagent::constant::AGENT_MODEL;
+use alagent::tools::build_toolbox;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv()?;
-    // let url = std::env::var("OPENAI_BASE_URL")?;
-    // println!("{url}");
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
         .finish();

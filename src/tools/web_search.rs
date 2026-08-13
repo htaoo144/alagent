@@ -65,7 +65,7 @@ pub struct WebSearchOutput{
 
 
 pub async fn web_search(args:WebSearchArgs)->anyhow::Result<WebSearchOutput>{
-    let api_key = std::env::var("TAVILY_API_KEY").context("Environment variable TAVILY_API_KEY not set".to_string())?;
+    let api_key = std::env::var("TAVILY_API_KEY").context("Environment variable TAVILY_API_KEY not set")?;
 
     let body = TavilyRequest{
         api_key:&api_key,
@@ -77,7 +77,9 @@ pub async fn web_search(args:WebSearchArgs)->anyhow::Result<WebSearchOutput>{
         include_answer:true
     };
 
-    let resp = reqwest::Client::new()
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()?
         .post("https://api.tavily.com/search")
         .json(&body)
         .send()

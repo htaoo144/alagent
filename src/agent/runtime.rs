@@ -101,18 +101,26 @@ impl<'a> Agent<'a>{
                 }
             }).collect();
         loop {
-            if context.current_step >= self.max_steps{
+            if context.current_step > self.max_steps{
                 anyhow::bail!("Max step exceeded");
             }
 
             let messages = self.build_messages(&context)?;
 
-            let request = CreateChatCompletionRequestArgs::default()
-                .model(self.model)
-                .messages(messages)
-                .tools(tool_definitions.clone())
-                .max_tokens(2048u32)
-                .build()?;
+            let request = if context.current_step < self.max_steps {
+                CreateChatCompletionRequestArgs::default()
+                    .model(self.model)
+                    .messages(messages)
+                    .tools(tool_definitions.clone())
+                    .max_tokens(2048u32)
+                    .build()?
+            } else {
+                CreateChatCompletionRequestArgs::default()
+                    .model(self.model)
+                    .messages(messages)
+                    .max_tokens(2048u32)
+                    .build()?
+            };
 
             let response = client.chat().create(request).await?;
 
@@ -208,7 +216,7 @@ impl<'a> Agent<'a>{
             }
 
             let (mut status,mut content) = match short_circuited {
-                Some(result) => (ToolResultStatus::Success,result),
+                Some(result) => (ToolResultStatus::Error,result),
                 None =>match self.toolbox.get(function_name) {
                     Some(tool)=>match tool.execute(arguments,context).await {
                         Ok(result)=>{
@@ -241,7 +249,6 @@ impl<'a> Agent<'a>{
                 {
                     status = new_status;
                     content = new_content;
-                    break;
                 }
             }
 

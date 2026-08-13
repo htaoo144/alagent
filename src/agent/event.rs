@@ -30,7 +30,7 @@ pub enum ToolResultStatus{
     Error,
 
 }
-#[derive(Debug)]
+#[derive(Debug,Serialize,Deserialize)]
 pub struct Event{
     pub id:String,
     pub execution_id:String,
@@ -47,9 +47,9 @@ impl Event{
     )->Self{
         Self{
             id :Uuid::new_v4().to_string(),
-            execution_id:execution_id.into(),
-            timestamp: chrono::Utc::now().timestamp(),
-            author:author.into(),
+            execution_id,
+            timestamp: chrono::Utc::now().timestamp_millis(),
+            author,
             content,
         }
     }

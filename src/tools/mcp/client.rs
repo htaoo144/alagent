@@ -4,7 +4,7 @@ use rmcp::service::RoleClient;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::ServiceExt;
-use rmcp::transport::{ConfigureCommandExt, TokioChildProcess};
+use rmcp::transport::TokioChildProcess;
 use tokio::process::Command;
 
 pub struct McpClient{
@@ -13,12 +13,17 @@ pub struct McpClient{
 
 impl McpClient {
     pub async fn connect() ->anyhow::Result<Self>{
+        let command = match option_env!("CARGO_BIN_EXE_fs_mcp") {
+            Some(bin) => Command::new(bin),
+            None => {
+                tracing::warn!("fs_mcp binary path unavailable at compile time, falling back to `cargo run`");
+                let mut cmd = Command::new("cargo");
+                cmd.args(["run", "--quiet", "--bin", "fs_mcp"]);
+                cmd
+            }
+        };
         let service = ()
-            .serve(TokioChildProcess::new(Command::new("cargo").configure(
-                |cmd|{
-                    cmd.args(["run","--quiet","--bin","fs_mcp"]);
-                },
-            ))?)
+            .serve(TokioChildProcess::new(command)?)
             .await?;
 
         Ok(McpClient{service})
@@ -58,6 +63,13 @@ impl McpClient {
             .collect::<Vec<String>>()
             .join("\n\n");
 
-        Ok(text)
+        if text.is_empty() {
+            Ok(format!(
+                "[tool `{name}` returned {} non-text content block(s), which are not supported]",
+                result.content.len()
+            ))
+        } else {
+            Ok(text)
+        }
     }
 }

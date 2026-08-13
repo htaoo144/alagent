@@ -33,11 +33,14 @@ pub async fn build_toolbox() -> anyhow::Result<ToolBox> {
         tools.push(Box::new(McpTool::new(mcp_client.clone(), tool)));
     }
 
-    Ok(tools
-        .into_iter()
-        .map(|t|(t.name().to_string(),t))
-        .collect())
-
+    let mut toolbox:ToolBox = HashMap::new();
+    for tool in tools {
+        let name = tool.name().to_string();
+        if toolbox.insert(name.clone(), tool).is_some() {
+            tracing::warn!("duplicate tool name `{name}`, the later one overrides the former");
+        }
+    }
+    Ok(toolbox)
 }
 
 #[async_trait::async_trait]
@@ -79,7 +82,7 @@ impl Tools for CalculatorTool {
             .expect("Can't convert CalculatorArgs to JSON")
     }
     async fn execute(&self,args_json:&str,_context:&ExecutionContext)->anyhow::Result<String>{
-        let args:CalculatorArgs =serde_json::from_str(&args_json)?;
+        let args:CalculatorArgs =serde_json::from_str(args_json)?;
         let result= calculation(&args.operator,args.first_number,args.second_number);
         match result {
             Ok(result) => Ok(result.to_string()),
@@ -103,7 +106,7 @@ impl Tools for WebSearchTool {
             .expect("Can't convert WebSearchArgs to JSON")
     }
     async fn execute(&self,args_json:&str,_context:&ExecutionContext)->anyhow::Result<String>{
-        let args:WebSearchArgs =serde_json::from_str(&args_json)?;
+        let args:WebSearchArgs =serde_json::from_str(args_json)?;
         let result = web_search(args).await;
         match result {
             Ok(result) => Ok(serde_json::to_string(&result)?),

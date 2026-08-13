@@ -1,25 +1,32 @@
-use anyhow::Ok;
 use async_openai::types::embeddings::{CreateEmbeddingRequestArgs, EmbeddingInput};
+
+const EMBED_BATCH_SIZE: usize = 128;
 
 pub async fn embed_texts(text:&[String], model:&str) -> anyhow::Result<Vec<Vec<f32>>> {
     if text.is_empty() {
         return Ok(vec![]);
     }
     let client= async_openai::Client::new();
-    let request = CreateEmbeddingRequestArgs::default()
-        .model(model)
-        .input(EmbeddingInput::StringArray(text.to_vec()))
-        .build()?;
 
-    let response = client.embeddings().create(request).await?;
+    let mut all_embeddings = Vec::with_capacity(text.len());
+    for batch in text.chunks(EMBED_BATCH_SIZE) {
+        let request = CreateEmbeddingRequestArgs::default()
+            .model(model)
+            .input(EmbeddingInput::StringArray(batch.to_vec()))
+            .build()?;
 
-    let mut data = response.data;
-    data.sort_by_key(|embedding| embedding.index);
+        let response = client.embeddings().create(request).await?;
 
-    Ok(data
-        .into_iter()
-        .map(|embedding| embedding.embedding)
-        .collect())
+        let mut data = response.data;
+        data.sort_by_key(|embedding| embedding.index);
+
+        all_embeddings.extend(
+            data.into_iter()
+                .map(|embedding| embedding.embedding)
+        );
+    }
+
+    Ok(all_embeddings)
 }
 
 pub async fn embed_text(text:&str,model:&str) -> anyhow::Result<Vec<f32>> {

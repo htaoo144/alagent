@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod constant;
+pub mod memory;
 pub mod tools;
 
 pub mod knowledge_base;

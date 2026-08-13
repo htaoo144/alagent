@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use crate::constant::EMBEDDING_MODEL;
+use crate::constant::embedding_model;
 use crate::knowledge_base::embed::{embed_text, embed_texts};
 #[derive(Debug,Clone)]
 pub struct SearchHit{
@@ -48,13 +48,21 @@ pub async fn vector_search(
     if chunk.is_empty() ||top_k ==0{
         return Ok(vec![]);
     }
-    let query_embedding = embed_text(query,EMBEDDING_MODEL).await?;
-    let chunk_embedding = embed_texts(chunk,EMBEDDING_MODEL).await?;
+    let query_embedding = embed_text(query,&embedding_model()).await?;
+    let chunk_embedding = embed_texts(chunk,&embedding_model()).await?;
+
+    if chunk_embedding.len() != chunk.len() {
+        anyhow::bail!(
+            "embedding count mismatch: expected {}, got {}",
+            chunk.len(),
+            chunk_embedding.len()
+        );
+    }
 
     let mut heap:BinaryHeap<ScoredIndex> = BinaryHeap::with_capacity(top_k+1);
 
     for (index,embedding) in chunk_embedding.iter().enumerate() {
-        let similarity = cosine_similarity(&query_embedding, &embedding);
+        let similarity = cosine_similarity(&query_embedding, embedding);
         heap.push(ScoredIndex{ similarity, index });
         if heap.len() > top_k {
             heap.pop();

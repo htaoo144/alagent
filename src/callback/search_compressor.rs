@@ -22,7 +22,7 @@ impl AfterToolCallBack for SearchCompressorCallback {
         status: ToolResultStatus,
         content: &str,
     ) -> Option<(ToolResultStatus, String)> {
-        if tool_name != "web_search" || status != ToolResultStatus::Success {
+        if tool_name != "WebSearch" || status != ToolResultStatus::Success {
             return None;
         }
         if content.len() < COMPRESS_THRESHOLD {
@@ -77,7 +77,7 @@ fn extract_query(context: &ExecutionContext, tool_call_id: &str) -> Option<Strin
                 tool_call_id: id,
                 name,
                 arguments,
-            } if id == tool_call_id && name == "web_search" => arguments
+            } if id == tool_call_id && name == "WebSearch" => arguments
                 .get("query")
                 .and_then(Value::as_str)
                 .map(str::to_owned),

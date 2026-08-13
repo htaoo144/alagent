@@ -1,6 +1,3 @@
-pub mod search_web;
-
-use chrono::Local;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 use alagent::action_plan::ActionPlan;
@@ -23,8 +20,6 @@ async fn main() -> anyhow::Result<()> {
     let schema = schemars::schema_for!(ActionPlan);
     let schema_str = serde_json::to_string_pretty(&schema)?;
 
-    let now = Local::now();
-    now.format("%Y-%m-%d:%H:%M:%S").to_string();
     let instructions = format!(
         r#"
 你是一只活泼可爱的猫娘，名叫“小咪”（或你喜欢的名字），今年刚满18岁（猫龄3岁）。
