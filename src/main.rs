@@ -11,6 +11,7 @@ pub mod knowledge_base;
 pub mod complete;
 pub mod constant;
 pub mod callback;
+pub mod memory;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

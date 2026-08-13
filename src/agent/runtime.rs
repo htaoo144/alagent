@@ -1,5 +1,7 @@
 use std::sync::Arc;
+use std::cell::RefCell;
 use crate::agent::context::ExecutionContext;
+use crate::memory::Memory;
 use crate::tools::ToolBox;
 use async_openai::types::assistants::FunctionCall;
 use async_openai::types::chat::{
@@ -24,6 +26,7 @@ pub struct Agent<'a>{
     instructions:Option<&'a str>,
     toolbox:&'a ToolBox,
     max_steps:u32,
+    memory:Option<RefCell<Memory>>,
     before_tool_callback:Vec<Arc<dyn BeforeToolCallBack>>,
     after_tool_callback:Vec<Arc<dyn AfterToolCallBack>>,
 }
@@ -35,6 +38,7 @@ impl<'a> Agent<'a>{
             instructions,
             toolbox,
             max_steps:10,
+            memory:None,
             before_tool_callback:Vec::new(),
             after_tool_callback:Vec::new(),
         }
@@ -52,10 +56,31 @@ impl<'a> Agent<'a>{
         self.after_tool_callback.push(callback);
         self
     }
+    pub fn with_memory(mut self,memory:Memory)->Self{
+        self.memory=Some(RefCell::new(memory));
+        self
+    }
+    pub fn clear_memory(&self){
+        if let Some(memory)=&self.memory{
+            memory.borrow_mut().clear();
+        }
+    }
+    pub fn memory_len(&self)->usize{
+        self.memory
+            .as_ref()
+            .map(|memory| memory.borrow().len())
+            .unwrap_or(0)
+    }
+    pub fn save_memory(&self,path:impl AsRef<std::path::Path>)->anyhow::Result<()>{
+        match &self.memory{
+            Some(memory)=>memory.borrow().save(path),
+            None=>anyhow::bail!("No memory configured"),
+        }
+    }
     pub async fn run(&self,user_input:&str)->anyhow::Result<AgentResult>{
         let mut context = ExecutionContext::new();
         context.add_event(Event::new(
-            context.execution_id.clone(),
+             context.execution_id.clone(),
             "user".to_string(),
             vec![ContentItem::Message {
                 role:"user".to_string(),
@@ -113,6 +138,13 @@ impl<'a> Agent<'a>{
                     }],
                 ));
                 context.final_result= Some(content.clone());
+
+                if let Some(memory) = &self.memory {
+                    let mut memory = memory.borrow_mut();
+                    memory.add_user(user_input);
+                    memory.add_assistant(content.clone());
+                }
+
                 return Ok(AgentResult{
                     output:content,
                     context
@@ -238,6 +270,23 @@ impl<'a> Agent<'a>{
                 .build()?
                 .into()
             );
+        }
+
+        if let Some(memory)=&self.memory{
+            for msg in memory.borrow().messages(){
+                let message:ChatCompletionRequestMessage = if msg.role=="user"{
+                    ChatCompletionRequestUserMessageArgs::default()
+                        .content(msg.content.clone())
+                        .build()?
+                        .into()
+                }else{
+                    ChatCompletionRequestAssistantMessageArgs::default()
+                        .content(msg.content.clone())
+                        .build()?
+                        .into()
+                };
+                messages.push(message);
+            }
         }
 
         for event in &content.event{

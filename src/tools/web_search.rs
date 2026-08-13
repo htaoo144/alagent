@@ -2,9 +2,16 @@ use anyhow::Context;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+
+// 使用Tavily提供的网路搜索服务进行web_search工具的具体实现
+//具体使用方法和参数参考 https://docs.tavily.com/?ref_domain=www.google.com&landing=www.tavily.com%2F
+//。。
+
+
+//使用tavily所需要的具体参数
 #[derive(Debug,Deserialize,JsonSchema)]
 pub struct WebSearchArgs{
-    pub query:String,
+    pub query:String, //
 
     #[schemars(range(min=0,max=20))]
     #[serde(default="default_max_results")]
@@ -50,7 +57,6 @@ pub struct TavilyResponse{
 
 #[derive(Debug,Serialize,Deserialize)]
 pub struct WebSearchOutput{
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub answer:Option<String>,
     pub result:Vec<SearchResults>,

@@ -51,7 +51,7 @@ impl AfterToolCallBack for SearchCompressorCallback {
                     .collect::<Vec<_>>()
                     .join("\n\n");
                 tracing::info!(
-                    "✅ Compression complete: {} chars → {} chars (top {} of {} chunks)",
+                    "Compression complete: {} chars → {} chars (top {} of {} chunks)",
                     content.len(),
                     compressed.len(),
                     TOP_K,

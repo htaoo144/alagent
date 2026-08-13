@@ -19,8 +19,16 @@ pub type ToolBox=HashMap<String,Box<dyn Tools>>;
 
 pub async fn build_toolbox() -> anyhow::Result<ToolBox> {
     let mut tools:Vec<Box<dyn Tools>> = vec![Box::new(CalculatorTool), Box::new(WebSearchTool)];
-    
-    let mcp_client = Arc::new(McpClient::connect().await?);
+
+    // 优先通过 MCP_HTTP_URL 连接远程 MCP 服务（可选 MCP_API_KEY），否则启动本地 fs_mcp 子进程
+    let mcp_client = match std::env::var("MCP_HTTP_URL") {
+        Ok(url) if !url.is_empty() => {
+            let api_key = std::env::var("MCP_API_KEY").ok();
+            tracing::info!("connecting to remote MCP server: {url}");
+            Arc::new(McpClient::connect_http(&url, api_key.as_deref()).await?)
+        }
+        _ => Arc::new(McpClient::connect().await?),
+    };
     for tool in mcp_client.list_tools().await? {
         tools.push(Box::new(McpTool::new(mcp_client.clone(), tool)));
     }

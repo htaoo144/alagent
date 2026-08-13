@@ -1,6 +1,8 @@
 use rmcp::model::{CallToolRequestParams, Tool};
 use rmcp::service::RunningService;
 use rmcp::service::RoleClient;
+use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
+use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::ServiceExt;
 use rmcp::transport::{ConfigureCommandExt, TokioChildProcess};
 use tokio::process::Command;
@@ -18,6 +20,21 @@ impl McpClient {
                 },
             ))?)
             .await?;
+
+        Ok(McpClient{service})
+    }
+
+    /// 通过 Streamable HTTP 连接远程 MCP 服务
+    ///
+    /// - `url`: 远程 MCP 端点，如 "https://example.com/mcp"
+    /// - `api_key`: 可选，提供时以 Bearer Token 形式放入 Authorization 请求头
+    pub async fn connect_http(url:&str, api_key:Option<&str>) -> anyhow::Result<Self> {
+        let mut config = StreamableHttpClientTransportConfig::with_uri(url);
+        if let Some(key) = api_key.filter(|k| !k.is_empty()) {
+            config = config.auth_header(key);
+        }
+        let transport = StreamableHttpClientTransport::from_config(config);
+        let service = ().serve(transport).await?;
 
         Ok(McpClient{service})
     }
