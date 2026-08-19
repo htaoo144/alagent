@@ -1,8 +1,9 @@
 use async_openai::types::chat::{ChatCompletionTool, ChatCompletionTools, FunctionObjectArgs};
 use schemars::schema_for;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
+use async_openai::types::audio::AudioResponseFormat::Json;
 use crate::agent::context::ExecutionContext;
 use crate::tools::calculator::{calculation, CalculatorArgs};
 use crate::tools::mcp::client::McpClient;
@@ -92,6 +93,37 @@ impl Tools for CalculatorTool {
     }
 
 }
+
+
+// pub fn calculator_tool_description()->async_openai::types::chat::ChatCompletionTools{
+//     ChatCompletionTools::Function(ChatCompletionTool{
+//         function:FunctionObjectArgs::default()
+//             .name("calculator")
+//             .description("Calculator")
+//             .parameters(json!({
+//                 "type": "object",
+//                 "properties":{
+//                     "operator":{
+//                     "type":"string",
+//                     "description":" ",
+//                     "enum":["add","subtract","multiply"],
+//                 },
+//                 "first-number":{
+//                     "type":"number",
+//                     "description":" ",
+//                 },
+//                 "seconde_number":{
+//                     "type":"number",
+//                     "description":" ",
+//                 }
+//             },
+//                 "request":["operator","first-number","second-number"],
+//             }))
+//             .build()
+//             .unwrap()
+//     })
+// }
+
 
 #[async_trait::async_trait]
 impl Tools for WebSearchTool {

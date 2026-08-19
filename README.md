@@ -60,6 +60,12 @@ tests/
 OPENAI_API_KEY=your_api_key
 OPENAI_BASE_URL=https://api.openai.com/v1   # 可选，兼容任意 OpenAI 兼容服务
 TAVILY_API_KEY=your_tavily_api_key          # 使用 WebSearch 时需要
+
+# embedding 单独端点（可选）：当 OPENAI_BASE_URL 指向的服务不支持 embeddings 时使用
+# 例如 DeepSeek 无 embeddings 接口，可指向硅基流动（免费额度）：
+EMBEDDING_BASE_URL=https://api.siliconflow.cn/v1
+EMBEDDING_API_KEY=your_embedding_api_key
+EMBEDDING_MODEL=BAAI/bge-m3
 ```
 
 模型配置在 `src/constant.rs`：

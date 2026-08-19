@@ -60,12 +60,19 @@ impl AfterToolCallBack for SearchCompressorCallback {
                 Some((status, compressed))
             }
             Err(err) => {
-                tracing::warn!("Search compression skipped: {err}");
-                None
+                // embedding 失败时降级为朴素压缩：取前 TOP_K 个 chunk，保证压缩不整体跳过
+                tracing::warn!("Vector compression failed ({err}), fallback to first {TOP_K} chunks");
+                let fallback = chunks
+                    .into_iter()
+                    .take(TOP_K)
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+                Some((status, fallback))
             }
         }
     }
 }
+
 
 fn extract_query(context: &ExecutionContext, tool_call_id: &str) -> Option<String> {
     context
